@@ -1,185 +1,125 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>StudyForge AI</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-
 <style>
-body {
+body{
   margin:0;
-  font-family:'Inter',sans-serif;
-  background:linear-gradient(135deg,#0f172a,#1e293b);
+  font-family:sans-serif;
+  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
   color:white;
-  display:flex;
-  justify-content:center;
+  text-align:center;
+}
+
+.container{
   padding:20px;
+  max-width:500px;
+  margin:auto;
 }
 
-.container {
+button{
   width:100%;
-  max-width:520px;
-}
-
-h1 {
-  font-weight:800;
-  font-size:26px;
-}
-
-.card {
-  background:rgba(255,255,255,0.05);
-  backdrop-filter:blur(15px);
-  padding:20px;
-  border-radius:18px;
-  margin-top:20px;
-  box-shadow:0 0 30px rgba(0,0,0,0.4);
-}
-
-button {
-  width:100%;
-  margin-top:12px;
-  padding:13px;
+  padding:15px;
+  margin:10px 0;
   border:none;
   border-radius:12px;
-  background:linear-gradient(45deg,#7c3aed,#9333ea);
+  font-size:16px;
+  background:linear-gradient(45deg,#7f00ff,#e100ff);
   color:white;
-  font-weight:600;
-  cursor:pointer;
 }
 
-input, textarea {
+input{
   width:100%;
-  margin-top:10px;
-  padding:10px;
+  padding:12px;
+  margin:10px 0;
   border-radius:10px;
   border:none;
-  background:#1e293b;
-  color:white;
 }
 
-video {
+.result{
+  margin-top:20px;
+  padding:15px;
+  background:#ffffff22;
+  border-radius:10px;
+}
+video{
   width:100%;
-  border-radius:12px;
-  margin-top:10px;
-}
-
-canvas {
-  display:none;
-}
-
-.result {
-  margin-top:15px;
-  white-space:pre-wrap;
-  font-size:14px;
+  border-radius:10px;
 }
 </style>
 </head>
 
 <body>
-
 <div class="container">
 <h1>⚡ StudyForge AI</h1>
 
-<div class="card">
-
-<!-- CAMERA SECTION -->
-<h3>📸 Live Camera</h3>
-<video id="video" autoplay playsinline></video>
+<video id="video" autoplay></video>
 <button onclick="startCamera()">Enable Camera</button>
 <button onclick="capturePhoto()">Take Photo</button>
 
-<canvas id="canvas"></canvas>
+<input type="file" id="fileInput" accept="image/*">
 
-<hr style="margin:20px 0;opacity:0.2;">
-
-<!-- FILE SECTION -->
-<h3>📁 Upload Image / File</h3>
-<input type="file" id="fileInput" accept="image/*,application/pdf,video/*">
-
-<hr style="margin:20px 0;opacity:0.2;">
-
-<!-- YOUTUBE -->
-<h3>🎥 YouTube Video</h3>
-<input type="text" id="youtubeLink" placeholder="Paste YouTube URL">
-
-<!-- WEBSITE -->
-<h3>🌐 Website</h3>
-<input type="text" id="websiteLink" placeholder="Paste Website URL">
-
-<button onclick="submitData()">Analyze</button>
+<button onclick="analyze()">Analyze</button>
 
 <div class="result" id="result"></div>
-
-</div>
 </div>
 
 <script>
-let videoStream = null;
+let stream;
 
-async function startCamera() {
-  try {
-    videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-    document.getElementById("video").srcObject = videoStream;
-  } catch (err) {
-    alert("Camera permission denied or not supported.");
+async function startCamera(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video:true });
+    document.getElementById("video").srcObject = stream;
+  }catch(e){
+    alert("Camera permission denied.");
   }
 }
 
-function capturePhoto() {
+function capturePhoto(){
   const video = document.getElementById("video");
-  const canvas = document.getElementById("canvas");
-  const context = canvas.getContext("2d");
-
+  const canvas = document.createElement("canvas");
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video,0,0);
 
-  context.drawImage(video, 0, 0);
-
-  canvas.toBlob(blob => {
-    window.capturedImage = blob;
-    alert("Photo captured!");
-  }, "image/jpeg");
+  canvas.toBlob(blob=>{
+    const file = new File([blob],"photo.png",{type:"image/png"});
+    document.getElementById("fileInput").files = createFileList(file);
+  });
 }
 
-async function submitData() {
-  const file = document.getElementById("fileInput").files[0];
-  const youtube = document.getElementById("youtubeLink").value;
-  const website = document.getElementById("websiteLink").value;
-  const result = document.getElementById("result");
+function createFileList(file){
+  const dataTransfer = new DataTransfer();
+  dataTransfer.items.add(file);
+  return dataTransfer.files;
+}
+
+async function analyze(){
+  const fileInput = document.getElementById("fileInput");
+  if(fileInput.files.length === 0){
+    alert("Upload or capture image first.");
+    return;
+  }
 
   const formData = new FormData();
+  formData.append("image", fileInput.files[0]);
 
-  if (window.capturedImage) {
-    formData.append("image", window.capturedImage);
-  }
+  document.getElementById("result").innerText = "Analyzing...";
 
-  if (file) {
-    formData.append("file", file);
-  }
-
-  if (youtube) {
-    formData.append("youtube", youtube);
-  }
-
-  if (website) {
-    formData.append("website", website);
-  }
-
-  result.innerText = "Processing...";
-
-  try {
-    const response = await fetch("/upload", {
-      method: "POST",
-      body: formData
+  try{
+    const res = await fetch("/analyze",{
+      method:"POST",
+      body:formData
     });
 
-    const data = await response.json();
-    result.innerText = data.summary || data.error || "No response.";
-
-  } catch (err) {
-    result.innerText = "Request failed.";
+    const data = await res.json();
+    document.getElementById("result").innerText =
+      data.result || data.error;
+  }catch(err){
+    document.getElementById("result").innerText = "Request failed.";
   }
 }
 </script>
