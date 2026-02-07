@@ -21,27 +21,27 @@ button { width:100%; padding:12px; margin-top:10px; border-radius:10px; border:n
 <div class="card" id="summary"></div>
 
 <script>
-async function uploadImage() {
-  const file = document.getElementById("imageInput").files[0];
-  if (!file) return alert("Select image");
+async function upload() {
+  const fileInput = document.querySelector("input[type='file']");
+  const file = fileInput.files[0];
+
+  if (!file) {
+    alert("Please select a file first.");
+    return;
+  }
 
   const formData = new FormData();
-  formData.append("image", file);
+  formData.append("file", file);
 
-  document.getElementById("loading").innerText = "Processing...";
-
-  const res = await fetch("/upload", {
+  const response = await fetch("/upload", {
     method: "POST",
     body: formData
   });
 
-  const data = await res.json();
+  const data = await response.json();
 
-  document.getElementById("loading").innerText = "";
-  document.getElementById("extracted").innerText =
-    "Extracted Text:\n\n" + data.extracted;
-  document.getElementById("summary").innerText =
-    "Summary:\n\n" + data.summary;
+  document.querySelectorAll(".result")[0].innerText = data.summary || "No summary";
+  document.querySelectorAll(".result")[1].innerText = data.questions || "No questions";
 }
 </script>
 
