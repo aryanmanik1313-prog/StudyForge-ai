@@ -20,12 +20,12 @@ body {
 
 .container {
   width:100%;
-  max-width:500px;
+  max-width:520px;
 }
 
 h1 {
   font-weight:800;
-  font-size:28px;
+  font-size:26px;
 }
 
 .card {
@@ -34,57 +34,45 @@ h1 {
   padding:20px;
   border-radius:18px;
   margin-top:20px;
-  box-shadow:0 0 30px rgba(0,0,0,0.3);
-}
-
-input[type="file"] {
-  margin-top:10px;
+  box-shadow:0 0 30px rgba(0,0,0,0.4);
 }
 
 button {
   width:100%;
-  margin-top:15px;
-  padding:14px;
+  margin-top:12px;
+  padding:13px;
   border:none;
   border-radius:12px;
   background:linear-gradient(45deg,#7c3aed,#9333ea);
   color:white;
   font-weight:600;
-  font-size:16px;
   cursor:pointer;
-  transition:0.3s;
 }
 
-button:active {
-  transform:scale(0.98);
+input, textarea {
+  width:100%;
+  margin-top:10px;
+  padding:10px;
+  border-radius:10px;
+  border:none;
+  background:#1e293b;
+  color:white;
+}
+
+video {
+  width:100%;
+  border-radius:12px;
+  margin-top:10px;
+}
+
+canvas {
+  display:none;
 }
 
 .result {
-  margin-top:20px;
+  margin-top:15px;
   white-space:pre-wrap;
   font-size:14px;
-  line-height:1.6;
-}
-
-.loader {
-  margin-top:15px;
-  display:none;
-  text-align:center;
-}
-
-.spinner {
-  border:4px solid rgba(255,255,255,0.2);
-  border-top:4px solid white;
-  border-radius:50%;
-  width:25px;
-  height:25px;
-  animation:spin 1s linear infinite;
-  margin:auto;
-}
-
-@keyframes spin {
-  0% {transform:rotate(0deg);}
-  100% {transform:rotate(360deg);}
 }
 </style>
 </head>
@@ -92,43 +80,94 @@ button:active {
 <body>
 
 <div class="container">
-
 <h1>⚡ StudyForge AI</h1>
-<p>Upload handwritten notes. Get AI summary.</p>
 
 <div class="card">
-  <input id="fileInput" type="file" accept="image/*" capture="environment">
 
-  <button onclick="upload()">Upload & Summarize</button>
+<!-- CAMERA SECTION -->
+<h3>📸 Live Camera</h3>
+<video id="video" autoplay playsinline></video>
+<button onclick="startCamera()">Enable Camera</button>
+<button onclick="capturePhoto()">Take Photo</button>
 
-  <div class="loader" id="loader">
-    <div class="spinner"></div>
-    <p>Processing...</p>
-  </div>
+<canvas id="canvas"></canvas>
 
-  <div class="result" id="result"></div>
+<hr style="margin:20px 0;opacity:0.2;">
+
+<!-- FILE SECTION -->
+<h3>📁 Upload Image / File</h3>
+<input type="file" id="fileInput" accept="image/*,application/pdf,video/*">
+
+<hr style="margin:20px 0;opacity:0.2;">
+
+<!-- YOUTUBE -->
+<h3>🎥 YouTube Video</h3>
+<input type="text" id="youtubeLink" placeholder="Paste YouTube URL">
+
+<!-- WEBSITE -->
+<h3>🌐 Website</h3>
+<input type="text" id="websiteLink" placeholder="Paste Website URL">
+
+<button onclick="submitData()">Analyze</button>
+
+<div class="result" id="result"></div>
+
 </div>
-
 </div>
 
 <script>
-async function upload() {
-  const fileInput = document.getElementById("fileInput");
-  const resultDiv = document.getElementById("result");
-  const loader = document.getElementById("loader");
+let videoStream = null;
 
-  const file = fileInput.files[0];
-
-  if (!file) {
-    alert("Select an image first.");
-    return;
+async function startCamera() {
+  try {
+    videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    document.getElementById("video").srcObject = videoStream;
+  } catch (err) {
+    alert("Camera permission denied or not supported.");
   }
+}
+
+function capturePhoto() {
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const context = canvas.getContext("2d");
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  context.drawImage(video, 0, 0);
+
+  canvas.toBlob(blob => {
+    window.capturedImage = blob;
+    alert("Photo captured!");
+  }, "image/jpeg");
+}
+
+async function submitData() {
+  const file = document.getElementById("fileInput").files[0];
+  const youtube = document.getElementById("youtubeLink").value;
+  const website = document.getElementById("websiteLink").value;
+  const result = document.getElementById("result");
 
   const formData = new FormData();
-  formData.append("image", file);
 
-  loader.style.display = "block";
-  resultDiv.innerText = "";
+  if (window.capturedImage) {
+    formData.append("image", window.capturedImage);
+  }
+
+  if (file) {
+    formData.append("file", file);
+  }
+
+  if (youtube) {
+    formData.append("youtube", youtube);
+  }
+
+  if (website) {
+    formData.append("website", website);
+  }
+
+  result.innerText = "Processing...";
 
   try {
     const response = await fetch("/upload", {
@@ -137,21 +176,10 @@ async function upload() {
     });
 
     const data = await response.json();
-
-    loader.style.display = "none";
-
-    if (data.summary) {
-      resultDiv.innerText = data.summary;
-    } else if (data.error) {
-      resultDiv.innerText = data.error;
-    } else {
-      resultDiv.innerText = "No response received.";
-    }
+    result.innerText = data.summary || data.error || "No response.";
 
   } catch (err) {
-    loader.style.display = "none";
-    resultDiv.innerText = "Upload failed.";
-    console.error(err);
+    result.innerText = "Request failed.";
   }
 }
 </script>
