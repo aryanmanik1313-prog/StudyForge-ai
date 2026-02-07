@@ -1,47 +1,63 @@
-const express = require("express");
-const multer = require("multer");
-const cors = require("cors");
-const { OpenAI } = require("openai");
-const Tesseract = require("tesseract.js");
+import express from "express";
+import multer from "multer";
+import cors from "cors";
+import dotenv from "dotenv";
+import OpenAI from "openai";
+
+dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-const upload = multer({ storage: multer.memoryStorage() });
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_KEY,
+const upload = multer({
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
-app.post("/upload", upload.single("image"), async (req, res) => {
+// Initialize OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_KEY
+});
+
+app.post("/analyze", upload.any(), async (req, res) => {
   try {
-    const imageBuffer = req.file.buffer;
-
-    const { data: { text } } =
-      await Tesseract.recognize(imageBuffer, "eng");
-
-    if (!text.trim()) {
-      return res.json({ summary: "No readable text found." });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "No file uploaded" });
     }
+
+    const file = req.files[0];
+
+    const base64Image = file.buffer.toString("base64");
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "Summarize academically in 5 bullet points." },
-        { role: "user", content: text }
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Analyze this image and summarize it clearly." },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${file.mimetype};base64,${base64Image}`
+              }
+            }
+          ]
+        }
       ]
     });
 
     res.json({
-      extracted: text,
-      summary: response.choices[0].message.content
+      result: response.choices[0].message.content
     });
 
   } catch (err) {
-    res.status(500).json({ error: "Error processing file." });
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-app.listen(process.env.PORT || 3000);
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Server running");
+});
